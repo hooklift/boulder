@@ -31,37 +31,29 @@ func (ca *mockCA) GenerateOCSP(xferObj core.OCSPSigningRequest) (ocsp []byte, er
 }
 
 type mockPub struct {
-	sa     core.StorageAuthority
-	double bool
+	sa core.StorageAuthority
 }
 
 func (p *mockPub) SubmitToCT(_ []byte) error {
-	if p.double {
-		err := p.sa.AddSCTReceipt(core.SignedCertificateTimestamp{
-			SCTVersion:        0,
-			LogID:             "another-id",
-			Timestamp:         0,
-			Extensions:        []byte{},
-			Signature:         []byte{0},
-			CertificateSerial: "00",
-		})
-		if err != nil {
-			return err
-		}
-	}
-	return p.sa.AddSCTReceipt(core.SignedCertificateTimestamp{
+	sct := core.SignedCertificateTimestamp{
 		SCTVersion:        0,
 		LogID:             "id",
 		Timestamp:         0,
 		Extensions:        []byte{},
 		Signature:         []byte{0},
 		CertificateSerial: "00",
-	})
+	}
+	err := p.sa.AddSCTReceipt(sct)
+	if err != nil {
+		return err
+	}
+	sct.LogID = "another-id"
+	return p.sa.AddSCTReceipt(sct)
 }
 
 var log = mocks.UseMockLog()
 
-func setup(t *testing.T, doubleSubmit bool) (*OCSPUpdater, core.StorageAuthority, *gorp.DbMap, clock.FakeClock, func()) {
+func setup(t *testing.T) (*OCSPUpdater, core.StorageAuthority, *gorp.DbMap, clock.FakeClock, func()) {
 	dbMap, err := sa.NewDbMap(vars.DBConnSA)
 	test.AssertNotError(t, err, "Failed to create dbMap")
 	sa.SetSQLDebug(dbMap, true)
@@ -81,7 +73,7 @@ func setup(t *testing.T, doubleSubmit bool) (*OCSPUpdater, core.StorageAuthority
 		fc,
 		dbMap,
 		&mockCA{},
-		&mockPub{sa, doubleSubmit},
+		&mockPub{sa},
 		sa,
 		cmd.OCSPUpdaterConfig{
 			NewCertificateBatchSize: 1,
@@ -99,7 +91,7 @@ func setup(t *testing.T, doubleSubmit bool) (*OCSPUpdater, core.StorageAuthority
 }
 
 func TestGenerateAndStoreOCSPResponse(t *testing.T) {
-	updater, sa, _, _, cleanUp := setup(t, false)
+	updater, sa, _, _, cleanUp := setup(t)
 	defer cleanUp()
 
 	reg := satest.CreateWorkingRegistration(t, sa)
@@ -127,7 +119,7 @@ func TestGenerateAndStoreOCSPResponse(t *testing.T) {
 }
 
 func TestGenerateOCSPResponses(t *testing.T) {
-	updater, sa, _, fc, cleanUp := setup(t, false)
+	updater, sa, _, fc, cleanUp := setup(t)
 	defer cleanUp()
 
 	reg := satest.CreateWorkingRegistration(t, sa)
@@ -153,7 +145,7 @@ func TestGenerateOCSPResponses(t *testing.T) {
 }
 
 func TestFindStaleOCSPResponses(t *testing.T) {
-	updater, sa, _, fc, cleanUp := setup(t, false)
+	updater, sa, _, fc, cleanUp := setup(t)
 	defer cleanUp()
 
 	reg := satest.CreateWorkingRegistration(t, sa)
@@ -181,7 +173,7 @@ func TestFindStaleOCSPResponses(t *testing.T) {
 }
 
 func TestGetCertificatesWithMissingResponses(t *testing.T) {
-	updater, sa, _, _, cleanUp := setup(t, false)
+	updater, sa, _, _, cleanUp := setup(t)
 	defer cleanUp()
 
 	reg := satest.CreateWorkingRegistration(t, sa)
@@ -196,7 +188,7 @@ func TestGetCertificatesWithMissingResponses(t *testing.T) {
 }
 
 func TestFindRevokedCertificatesToUpdate(t *testing.T) {
-	updater, sa, _, _, cleanUp := setup(t, false)
+	updater, sa, _, _, cleanUp := setup(t)
 	defer cleanUp()
 
 	reg := satest.CreateWorkingRegistration(t, sa)
@@ -218,7 +210,7 @@ func TestFindRevokedCertificatesToUpdate(t *testing.T) {
 }
 
 func TestNewCertificateTick(t *testing.T) {
-	updater, sa, _, fc, cleanUp := setup(t, false)
+	updater, sa, _, fc, cleanUp := setup(t)
 	defer cleanUp()
 
 	reg := satest.CreateWorkingRegistration(t, sa)
@@ -236,7 +228,7 @@ func TestNewCertificateTick(t *testing.T) {
 }
 
 func TestOldOCSPResponsesTick(t *testing.T) {
-	updater, sa, _, fc, cleanUp := setup(t, false)
+	updater, sa, _, fc, cleanUp := setup(t)
 	defer cleanUp()
 
 	reg := satest.CreateWorkingRegistration(t, sa)
@@ -254,7 +246,7 @@ func TestOldOCSPResponsesTick(t *testing.T) {
 }
 
 func TestMissingReceiptsTick(t *testing.T) {
-	updater, sa, _, _, cleanUp := setup(t, true)
+	updater, sa, _, _, cleanUp := setup(t)
 	defer cleanUp()
 
 	reg := satest.CreateWorkingRegistration(t, sa)
@@ -278,7 +270,7 @@ func TestMissingReceiptsTick(t *testing.T) {
 }
 
 func TestRevokedCertificatesTick(t *testing.T) {
-	updater, sa, _, _, cleanUp := setup(t, false)
+	updater, sa, _, _, cleanUp := setup(t)
 	defer cleanUp()
 
 	reg := satest.CreateWorkingRegistration(t, sa)
@@ -303,7 +295,7 @@ func TestRevokedCertificatesTick(t *testing.T) {
 }
 
 func TestStoreResponseGuard(t *testing.T) {
-	updater, sa, _, _, cleanUp := setup(t, false)
+	updater, sa, _, _, cleanUp := setup(t)
 	defer cleanUp()
 
 	reg := satest.CreateWorkingRegistration(t, sa)
