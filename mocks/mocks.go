@@ -270,7 +270,15 @@ func (sa *StorageAuthority) GetValidAuthorizations(regID int64, names []string, 
 		for _, name := range names {
 			if sa.authorizedDomains[name] || name == "not-an-example.com" {
 				exp := now.AddDate(100, 0, 0)
-				auths[name] = core.Authorization{Status: core.StatusValid, RegistrationID: 1, Expires: &exp, Identifier: core.AcmeIdentifier{Type: "dns", Value: name}}
+				auths[name] = core.Authorization{
+					Status:         core.StatusValid,
+					RegistrationID: 1,
+					Expires:        &exp,
+					Identifier: core.AcmeIdentifier{
+						Type:  "dns",
+						Value: name,
+					},
+				}
 			}
 		}
 		return auths, nil

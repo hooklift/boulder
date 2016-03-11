@@ -1256,12 +1256,11 @@ func (cac StorageAuthorityClient) GetLatestValidAuthorization(registrationID int
 // RegID and dnsName. The current time is also included in the request to
 // assist filtering.
 func (cac StorageAuthorityClient) GetValidAuthorizations(registrationID int64, names []string, now time.Time) (auths map[string]core.Authorization, err error) {
-	var lvar getValidAuthorizationsRequest
-	lvar.RegID = registrationID
-	lvar.Names = names
-	lvar.Now = now
-
-	data, err := json.Marshal(lvar)
+	data, err := json.Marshal(getValidAuthorizationsRequest{
+		RegID: registrationID,
+		Names: names,
+		Now:   now,
+	})
 	if err != nil {
 		return
 	}

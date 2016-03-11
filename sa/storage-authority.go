@@ -236,28 +236,30 @@ func (ssa *SQLStorageAuthority) GetLatestValidAuthorization(registrationID int64
 // domain names from the parameters that the account has authorizations for.
 func (ssa *SQLStorageAuthority) GetValidAuthorizations(registrationID int64, names []string, now time.Time) (latest map[string]core.Authorization, err error) {
 	if len(names) == 0 {
-		return nil, nil
+		return nil, errors.New("GetValidAuthorizations: no names received")
 	}
+
 	params := make([]interface{}, len(names))
+	qmarks := make([]string, len(names))
 	for i, name := range names {
 		id := core.AcmeIdentifier{Type: core.IdentifierDNS, Value: name}
-		tmp, err := json.Marshal(id)
+		idJSON, err := json.Marshal(id)
 		if err != nil {
 			return nil, err
 		}
-		params[i] = string(tmp)
+		params[i] = string(idJSON)
+		qmarks[i] = "?"
 	}
-
-	qmarks := strings.Repeat("?,", len(names))
-	qmarks = qmarks[:len(qmarks)-1] // remove last comma
 
 	var auths []core.Authorization
 	_, err = ssa.dbMap.Select(&auths, `
 		SELECT * FROM authz
 		WHERE registrationID = ?
 		AND expires > ?
-		AND identifier IN (`+qmarks+`)
-		AND status = 'valid'`, append([]interface{}{registrationID, now}, params...)...)
+		AND identifier IN (`+strings.Join(qmarks, ",")+`)
+		AND status = 'valid'
+		ORDER BY expires ASC
+		`, append([]interface{}{registrationID, now}, params...)...)
 	if err != nil {
 		return nil, err
 	}
@@ -267,10 +269,9 @@ func (ssa *SQLStorageAuthority) GetValidAuthorizations(registrationID int64, nam
 		if auth.Identifier.Type != core.IdentifierDNS {
 			return nil, fmt.Errorf("unknown identifier type: %q on authz id %q", auth.Identifier.Type, auth.ID)
 		}
-		existing, _ := byName[auth.Identifier.Value]
-		if existing.Expires == nil || existing.Expires.Before(*auth.Expires) {
-			byName[auth.Identifier.Value] = auth
-		}
+		// due to ORDER BY expires, this results in the latest value
+		// for each name being used
+		byName[auth.Identifier.Value] = auth
 	}
 
 	return byName, nil

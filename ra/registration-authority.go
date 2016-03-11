@@ -460,8 +460,8 @@ func (ra *RegistrationAuthorityImpl) checkAuthorizations(names []string, registr
 		return err
 	}
 	for _, name := range names {
-		authz := auths[name]
-		if authz.Expires == nil || authz.Expires.Before(now) {
+		authz, ok := auths[name]
+		if !ok || authz.Expires == nil || authz.Expires.Before(now) {
 			badNames = append(badNames, name)
 		}
 	}
